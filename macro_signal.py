@@ -26,9 +26,11 @@ import data  # reuse the yfinance price layer
 # _20260209 (dynamic filtering) is supported on Sonnet 4.6.
 MODEL = "claude-sonnet-4-6"
 # max_uses resets on each pause_turn continuation, so real cap = max_uses x loop rounds.
-# Measured 2026-07-09: dynamic filtering billed 16 searches on ONE call at max_uses=3
-# (multiple queries per tool-use) — so the knob is a loose lid, not a budget. Keep it
-# at 2 and treat the searches/tokens recorded on each Tilt as the cost ground truth.
+# MEASURED cost per call (dynamic filtering bills many queries per tool-use, so this
+# knob is a loose lid, not a budget — trust the searches/in_tokens logged per Tilt):
+#   max_uses=3 → 16 searches            ≈ $0.50+
+#   max_uses=2 → 15 searches,  93k in   ≈ $0.47   ← cheapest that grounds; KEEP
+#   max_uses=1 → 26 searches, 205k in   ≈ $0.97   (starving rounds backfires — 2x cost)
 WEB_SEARCH = {"type": "web_search_20260209", "name": "web_search", "max_uses": 2}
 
 CACHE = os.path.join(os.path.dirname(__file__), "cache", "macro")
@@ -86,7 +88,9 @@ class CreditsExhausted(RuntimeError):
 
 
 def _today():
-    return dt.date.today().isoformat()
+    # UTC, everywhere. The Mac (IST) and the GitHub runner (UTC) must agree on
+    # "today" or a market bought on one gets re-bought on the other near midnight.
+    return dt.datetime.now(dt.timezone.utc).date().isoformat()
 
 
 # ----------------------- price-action context -----------------------

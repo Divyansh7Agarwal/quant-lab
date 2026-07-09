@@ -36,11 +36,11 @@ def price_of(sym):
 def load_state():
     if os.path.exists(STATE):
         return json.load(open(STATE))
-    return {"cash": START_EQUITY, "positions": {}, "started": dt.date.today().isoformat()}
+    return {"cash": START_EQUITY, "positions": {}, "started": dt.datetime.now(dt.timezone.utc).date().isoformat()}
 
 
 def main():
-    today = dt.date.today().isoformat()
+    today = dt.datetime.now(dt.timezone.utc).date().isoformat()
     st = load_state()
 
     # skip if already run today (idempotent for re-runs)

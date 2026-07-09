@@ -21,7 +21,7 @@ EXCHANGES = ["binance", "bybit", "kucoin", "okx", "gate", "bitget"]
 
 def fetch_funding(days=300):
     since0 = ccxt.binance().parse8601(
-        (dt.date.today() - dt.timedelta(days=days)).isoformat() + "T00:00:00Z")
+        (dt.datetime.now(dt.timezone.utc).date() - dt.timedelta(days=days)).isoformat() + "T00:00:00Z")
     for xid in EXCHANGES:
         try:
             ex = getattr(ccxt, xid)({"enableRateLimit": True, "timeout": 20000,
@@ -54,7 +54,7 @@ def main():
     f3 = fd.rolling(3).mean()
     z = float(((f3 - f3.rolling(90).mean()) / f3.rolling(90).std()).iloc[-1])
     trigger = "LONG" if z < -Z_ENTRY else ("SHORT_ZONE" if z > Z_ENTRY else "none")
-    row = {"date": dt.date.today().isoformat(), "fund_1d": float(fd.iloc[-1]),
+    row = {"date": dt.datetime.now(dt.timezone.utc).date().isoformat(), "fund_1d": float(fd.iloc[-1]),
            "fund_3d": float(f3.iloc[-1]), "z": round(z, 3), "trigger": trigger,
            "source": src, "ts": time.time()}
     if os.path.exists(LOG):

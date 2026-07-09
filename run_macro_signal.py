@@ -35,7 +35,7 @@ def main():
                 print(f"  {s:<7} (context failed: {e})")
         return
 
-    print(f"Macro signal — {dt.date.today().isoformat()} — {len(universe)} instruments "
+    print(f"Macro signal — {dt.datetime.now(dt.timezone.utc).date().isoformat()} — {len(universe)} instruments "
           f"(model {ms.MODEL}, grounded by web search)\n")
     DELAY = 15   # seconds between instruments — stay under the web-search rate limit
     credits_dead = False
@@ -89,13 +89,13 @@ def main():
     if os.path.exists(OUT):
         try:
             prev = json.load(open(OUT))
-            if prev.get("as_of") == dt.date.today().isoformat():
+            if prev.get("as_of") == dt.datetime.now(dt.timezone.utc).date().isoformat():
                 book = {**prev.get("targets", {}), **book}
         except Exception:                                # noqa: BLE001
             pass
 
     n_g = sum(t.grounded for t in tilts)
-    json.dump({"as_of": dt.date.today().isoformat(), "model": ms.MODEL, "targets": book},
+    json.dump({"as_of": dt.datetime.now(dt.timezone.utc).date().isoformat(), "model": ms.MODEL, "targets": book},
               open(OUT, "w"), indent=2)
     print(f"\n  {n_g}/{len(tilts)} grounded. wrote {OUT} (grounded tilt × confidence; executor sizes from this)")
     print(f"  appended rows to {ms.LOG}")

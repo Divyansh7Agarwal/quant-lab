@@ -93,7 +93,7 @@ def main():
     # t-stat on per-trade direction PnL → rough significance of the edge
     tstat = pnl.mean() / (pnl.std() / np.sqrt(n)) if pnl.std() > 0 else 0.0
 
-    print(f"Macro-signal forward score — {dt.date.today().isoformat()}")
+    print(f"Macro-signal forward score — {dt.datetime.now(dt.timezone.utc).date().isoformat()}")
     print(f"{n} graded tilts, {pending} pending\n")
 
     print(f"  {'symbol':<8}{'n':>4}{'hit%':>7}{'avgFwd%':>9}")
