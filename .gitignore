@@ -1,5 +1,8 @@
 # regenerated each run / local-only — never committed
-cache/
+# (but cache/macro IS committed: each file there is a PAID Claude call — persisting
+#  them means a re-run reuses them for free instead of buying the same answer twice)
+cache/*
+!cache/macro/
 __pycache__/
 *.pyc
 *.png

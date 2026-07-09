@@ -26,8 +26,10 @@ import data  # reuse the yfinance price layer
 # _20260209 (dynamic filtering) is supported on Sonnet 4.6.
 MODEL = "claude-sonnet-4-6"
 # max_uses resets on each pause_turn continuation, so real cap = max_uses x loop rounds.
-# 3 x 2 rounds = max ~6 searches/call (~$0.30-0.50/call). Grounding needs ~5, not 30.
-WEB_SEARCH = {"type": "web_search_20260209", "name": "web_search", "max_uses": 3}
+# Measured 2026-07-09: dynamic filtering billed 16 searches on ONE call at max_uses=3
+# (multiple queries per tool-use) — so the knob is a loose lid, not a budget. Keep it
+# at 2 and treat the searches/tokens recorded on each Tilt as the cost ground truth.
+WEB_SEARCH = {"type": "web_search_20260209", "name": "web_search", "max_uses": 2}
 
 CACHE = os.path.join(os.path.dirname(__file__), "cache", "macro")
 LOG = os.path.join(os.path.dirname(__file__), "macro_signal_log.jsonl")
@@ -74,6 +76,13 @@ class Tilt:
     source: str            # "claude+websearch" | "cache"
     grounded: bool = False # did live search actually return results this call?
     searches: int = 0      # number of web searches Claude issued
+    in_tokens: int = 0     # billed input tokens (cost audit trail)
+    out_tokens: int = 0    # billed output tokens
+
+
+class CreditsExhausted(RuntimeError):
+    """API says the account is out of credits — abort the whole run, don't
+    march through the remaining symbols burning time on guaranteed failures."""
 
 
 def _today():
@@ -140,19 +149,34 @@ def _call_claude(symbol):
     import anthropic
     # Talk to Anthropic DIRECTLY — bypass any local ANTHROPIC_BASE_URL proxy
     # (e.g. headroom), which injects tools this standalone script can't fulfill.
-    # timeout so a single hung web-search call can't stall the whole cloud run
-    # (default is 10 min/request); max_retries low to avoid long backoff chains.
+    # Cost rules learned the hard way (2026-07-09, $20 burned):
+    #  - timeout=240: a slow web-search turn is BILLED even if we abandon it, so
+    #    give it room to finish; the workflow's step timeout bounds the run.
+    #  - max_retries=0: an SDK retry after a timeout can double-bill (the first
+    #    request may still complete server-side). Retrying is the runner's job,
+    #    and thanks to the on-disk cache a retried symbol re-pays nothing once done.
     client = anthropic.Anthropic(base_url="https://api.anthropic.com",
-                                 timeout=150.0, max_retries=1)
+                                 timeout=240.0, max_retries=0)
     messages = [{"role": "user", "content": build_prompt(symbol)}]
-    text_out, searches, results, errors = "", 0, 0, 0
+    text_out, results, errors = "", 0, 0
+    search_ids = set()          # dedupe by block id — continuations can repeat blocks
+    in_tok = out_tok = 0
     for _ in range(2):  # cost cap: initial + ONE continuation (searches re-bill per round)
-        resp = client.messages.create(
-            model=MODEL, max_tokens=2500, tools=[WEB_SEARCH], messages=messages,
-        )
+        try:
+            resp = client.messages.create(
+                model=MODEL, max_tokens=2500, tools=[WEB_SEARCH], messages=messages,
+            )
+        except anthropic.BadRequestError as e:
+            if "credit balance is too low" in str(e).lower():
+                raise CreditsExhausted("Anthropic credits exhausted") from e
+            raise
+        u = getattr(resp, "usage", None)
+        if u:
+            in_tok += getattr(u, "input_tokens", 0) or 0
+            out_tok += getattr(u, "output_tokens", 0) or 0
         for b in resp.content:
             if b.type == "server_tool_use":
-                searches += 1
+                search_ids.add(getattr(b, "id", len(search_ids)))
             elif b.type == "web_search_tool_result":
                 if isinstance(b.content, list):
                     results += len(b.content)
@@ -163,7 +187,7 @@ def _call_claude(symbol):
             messages.append({"role": "assistant", "content": resp.content})
             continue
         break
-    return _extract_json(text_out), searches, results, errors
+    return _extract_json(text_out), len(search_ids), results, errors, in_tok, out_tok
 
 
 def get_tilt(symbol, refresh=False, verbose=False):
@@ -178,7 +202,7 @@ def get_tilt(symbol, refresh=False, verbose=False):
     if not os.getenv("ANTHROPIC_API_KEY"):
         raise RuntimeError("ANTHROPIC_API_KEY not set — export it to call Claude.")
 
-    raw, searches, results, errors = _call_claude(symbol)
+    raw, searches, results, errors, in_tok, out_tok = _call_claude(symbol)
     tilt = Tilt(
         symbol=symbol,
         stance=str(raw.get("stance", "flat")).lower(),
@@ -189,6 +213,7 @@ def get_tilt(symbol, refresh=False, verbose=False):
         key_drivers=list(raw.get("key_drivers", []))[:6],
         as_of=_today(), model=MODEL, source="claude+websearch",
         grounded=(results >= 3 and errors == 0), searches=searches,
+        in_tokens=in_tok, out_tokens=out_tok,
     )
     json.dump(asdict(tilt), open(key, "w"))
     with open(LOG, "a") as fh:
