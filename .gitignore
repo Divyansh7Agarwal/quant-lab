@@ -1,0 +1,17 @@
+# regenerated each run / local-only — never committed
+cache/
+__pycache__/
+*.pyc
+*.png
+*.bak
+*.output
+server.log
+macro_cron.log
+macro_run.log
+macro_manual_run.log
+backfill.log
+dashboard/site/
+com.user.quant.dashboard.plist
+
+# tracked (state that must persist across cloud runs):
+#   *.jsonl  paper_state.json  target_tilts.json  all *.py  requirements.txt

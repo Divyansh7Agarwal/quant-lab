@@ -1,0 +1,10 @@
+{
+  "as_of": "2026-07-08",
+  "model": "claude-sonnet-4-6",
+  "targets": {
+    "XAGUSD": -0.1575,
+    "EURUSD": 0.1575,
+    "GBPUSD": -0.1575,
+    "XAUUSD": 0.1064
+  }
+}

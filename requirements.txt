@@ -1,0 +1,6 @@
+anthropic
+ccxt
+yfinance
+pandas
+numpy
+matplotlib

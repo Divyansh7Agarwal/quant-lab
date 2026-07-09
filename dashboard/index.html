@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quant Lab</title>
+<style>
+  :root{
+    --ink:#0B0F17; --panel:#121826; --panel2:#0E1420; --line:#202A3C;
+    --text:#DCE3EF; --muted:#7E8BA3; --accent:#E3B34E;
+    --long:#45B583; --short:#E06060; --flat:#7E8BA3; --warn:#D97742;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{color-scheme:dark}
+  body{background:var(--ink);color:var(--text);font:15px/1.55 var(--sans)}
+  a{color:var(--accent)}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+
+  header{position:sticky;top:0;z-index:9;background:rgba(11,15,23,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+  .hrow{display:flex;align-items:center;gap:14px;padding:14px 0;flex-wrap:wrap}
+  .mark{font:600 17px var(--sans);letter-spacing:.2px}
+  .mark b{color:var(--accent);font-weight:700}
+  .pills{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+  .pill{font:500 12px var(--sans);padding:4px 10px;border-radius:99px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+  .pill.ok{color:var(--long);border-color:color-mix(in srgb,var(--long) 40%,transparent)}
+  .pill.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+  .pill.amber{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+
+  nav{display:flex;gap:2px;overflow-x:auto}
+  nav button{appearance:none;background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);
+    font:500 13.5px var(--sans);padding:10px 13px;cursor:pointer;letter-spacing:.2px;white-space:nowrap}
+  nav button:hover{color:var(--text)}
+  nav button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  nav button.on{color:var(--accent);border-bottom-color:var(--accent)}
+
+  main{padding:26px 0 70px}
+  section{display:none}
+  section.on{display:block}
+  .eyebrow{font:600 11px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  h2{font:600 19px var(--sans);margin-bottom:6px;text-wrap:balance}
+  .sub{color:var(--muted);font-size:13.5px;margin-bottom:18px;max-width:70ch}
+
+  .grid{display:grid;gap:14px}
+  .stats{grid-template-columns:repeat(auto-fit,minmax(175px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+  .stat .k{font:600 11px var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .stat .v{font:600 26px/1.25 var(--mono);font-variant-numeric:tabular-nums;margin-top:6px}
+  .stat .d{color:var(--muted);font-size:12.5px;margin-top:3px}
+  .v .unit{font-size:14px;color:var(--muted);font-weight:500}
+  .amberv{color:var(--accent)}
+
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  th{font:600 11px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  td{padding:9px 10px;border-bottom:1px solid var(--panel2);font-size:13.5px}
+  td.num{font-family:var(--mono)}
+  tr:last-child td{border-bottom:0}
+  .tblwrap{overflow-x:auto}
+
+  .chip{display:inline-block;font:600 11px var(--mono);letter-spacing:.06em;padding:3px 9px;border-radius:5px;text-transform:uppercase}
+  .chip.up{background:color-mix(in srgb,var(--long) 16%,transparent);color:var(--long)}
+  .chip.down{background:color-mix(in srgb,var(--short) 16%,transparent);color:var(--short)}
+  .chip.neutral{background:color-mix(in srgb,var(--flat) 16%,transparent);color:var(--flat)}
+
+  .tiltbar{position:relative;height:8px;background:var(--panel2);border-radius:4px;min-width:120px}
+  .tiltbar::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--line)}
+  .tiltfill{position:absolute;top:0;bottom:0;border-radius:4px}
+
+  .gauge{position:relative;height:10px;border-radius:5px;margin:14px 4px 6px;
+    background:linear-gradient(90deg,color-mix(in srgb,var(--long) 45%,transparent) 0 16.6%,var(--panel2) 16.6% 83.3%,color-mix(in srgb,var(--short) 45%,transparent) 83.3% 100%)}
+  .needle{position:absolute;top:-5px;width:2px;height:20px;background:var(--accent);border-radius:1px}
+  .gscale{display:flex;justify-content:space-between;color:var(--muted);font:11px var(--mono);padding:0 2px}
+
+  .sigcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:10px}
+  .sigcard summary{display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer;list-style:none;flex-wrap:wrap}
+  .sigcard summary::-webkit-details-marker{display:none}
+  .sigcard summary:focus-visible{outline:2px solid var(--accent);border-radius:10px}
+  .sigsym{font:700 14px var(--mono);min-width:74px}
+  .sigmeta{color:var(--muted);font:12px var(--mono);margin-left:auto}
+  .sigbody{padding:2px 16px 16px;border-top:1px solid var(--panel2)}
+  .sigbody p{color:var(--text);font-size:13.5px;max-width:78ch;margin:10px 0}
+  .drivers{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .driver{font:12px var(--sans);color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:3px 9px}
+
+  .gravegrid{grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+  .stamp{font:700 10.5px var(--mono);letter-spacing:.1em;padding:3px 8px;border-radius:4px;display:inline-block;margin-bottom:10px}
+  .st-dead{background:color-mix(in srgb,var(--short) 15%,transparent);color:var(--short)}
+  .st-parked{background:color-mix(in srgb,var(--long) 15%,transparent);color:var(--long)}
+  .st-live{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent)}
+  .st-testing{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent)}
+  .st-lesson{background:color-mix(in srgb,var(--flat) 18%,transparent);color:var(--muted)}
+  .gname{font:600 15px var(--sans);margin-bottom:6px}
+  .gmetric{font:12.5px var(--mono);color:var(--text);opacity:.9;margin-bottom:8px}
+  .glesson{font:13px var(--sans);color:var(--muted)}
+
+  .barrow{display:flex;align-items:center;gap:10px;margin:6px 0}
+  .barlab{font:12px var(--mono);color:var(--muted);min-width:86px}
+  .bartrack{flex:1;height:9px;background:var(--panel2);border-radius:4px;overflow:hidden}
+  .barfill{height:100%;border-radius:4px}
+  .barval{font:12px var(--mono);min-width:52px;text-align:right}
+
+  .prog{height:12px;background:var(--panel2);border-radius:6px;position:relative;overflow:hidden;margin:10px 0 4px}
+  .progfill{height:100%;background:var(--accent);border-radius:6px;transition:width .5s}
+  .barmark{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--short)}
+
+  .btn{appearance:none;border:1px solid color-mix(in srgb,var(--accent) 55%,transparent);background:color-mix(in srgb,var(--accent) 10%,transparent);
+    color:var(--accent);font:600 12.5px var(--sans);border-radius:7px;padding:7px 14px;cursor:pointer}
+  .btn:hover{background:color-mix(in srgb,var(--accent) 18%,transparent)}
+  .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .btn[disabled]{opacity:.5;cursor:wait}
+
+  .note{border-left:3px solid var(--warn);background:color-mix(in srgb,var(--warn) 8%,transparent);
+    padding:10px 14px;border-radius:0 8px 8px 0;font-size:13px;color:var(--text);margin:14px 0}
+  .hint{border-left:3px solid var(--line);padding:8px 14px;font-size:12.5px;color:var(--muted);margin:12px 0}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .muted{color:var(--muted)}
+  .mt{margin-top:16px}.mt2{margin-top:26px}
+  .two{grid-template-columns:1fr 1fr}
+  @media(max-width:860px){.two{grid-template-columns:1fr}}
+  pre{font:12px/1.6 var(--mono);color:var(--muted);overflow-x:auto;padding:12px;background:var(--panel2);border-radius:8px}
+  .eq{background:var(--panel2);border-radius:8px;padding:13px 16px;margin:10px 0;overflow-x:auto}
+  .eq .f{font:13.5px var(--mono)}
+  .eq .f b{color:var(--accent);font-weight:600}
+  .eq .plain{font:13px var(--sans);color:var(--muted);margin-top:4px}
+  @media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="hrow">
+      <div class="mark">QUANT<b>LAB</b> <span class="muted" style="font-weight:400;font-size:13px">· your trading research, in plain sight</span></div>
+      <div class="pills" id="pills"><span class="pill">connecting…</span></div>
+    </div>
+    <nav id="nav">
+      <button data-t="overview" class="on">Overview</button>
+      <button data-t="plan">Trade plan</button>
+      <button data-t="score">Report card</button>
+      <button data-t="signals">Predictions</button>
+      <button data-t="grave">Ideas tested</button>
+      <button data-t="ref">Learn</button>
+      <button data-t="ops">Engine room</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section id="overview" class="on">
+    <div class="grid stats" id="statcards"></div>
+    <div class="grid two mt">
+      <div class="card">
+        <div class="eyebrow">Today's calls</div>
+        <h2 id="bookTitle">—</h2>
+        <div class="sub">Each row is one market and the AI's call for the next ~week: which way, how strongly it leans (the bar), and how sure it is (0 to 1).</div>
+        <div class="tblwrap"><table id="bookTable"></table></div>
+        <div id="bookNote"></div>
+      </div>
+      <div class="card">
+        <div class="eyebrow">Crowd panic meter — Bitcoin</div>
+        <h2 id="fzVal">—</h2>
+        <div class="sub">Measures how one-sided the crypto crowd's bets are. When it drops below −2, the crowd is panicking — historically Bitcoin bounces after that, so the practice account buys. It's rare: about 6 times a year.</div>
+        <div class="gauge"><div class="needle" id="needle" style="left:50%"></div></div>
+        <div class="gscale"><span>−3</span><span>−2 · BUY ZONE</span><span>0</span><span>+2 greedy</span><span>+3</span></div>
+        <div class="mt muted" id="fzMeta" style="font-size:12.5px"></div>
+        <div class="mt"><button class="btn" id="fzBtn">Check right now (~15s)</button></div>
+        <div class="hint">If it ever fires, your Mac also pops up a notification — you don't need to watch this page.</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="plan">
+    <div class="eyebrow">Practice account — real forward test, fake money</div>
+    <h2 id="paperTitle">$1,000 following every call, marked to market daily</h2>
+    <div class="sub">This is genuine paper trading: the account holds all the positions below, their value moves with real market prices every day, and every trade pays realistic costs. It shows the thing you asked for — what kind of profit (or loss) this signal would actually generate.</div>
+    <div class="grid two">
+      <div class="card">
+        <div class="eyebrow">Equity curve</div>
+        <div style="display:flex;gap:18px;align-items:baseline;flex-wrap:wrap">
+          <b class="mono" id="paperEquity" style="font-size:28px">—</b>
+          <span class="mono" id="paperPnl"></span>
+        </div>
+        <svg id="curve" viewBox="0 0 600 180" width="100%" height="180" role="img" aria-label="practice account equity over time" style="margin-top:10px"></svg>
+        <div class="muted" id="curveNote" style="font-size:12.5px"></div>
+      </div>
+      <div class="card">
+        <div class="eyebrow">What it holds right now</div>
+        <div class="tblwrap"><table id="planTable"><tr><td class="muted">loading…</td></tr></table></div>
+        <div class="mt muted" id="planMeta" style="font-size:13px"></div>
+      </div>
+    </div>
+    <div class="hint">Read profits here with patience: a good or bad first week is mostly luck. The Report card's pass mark (right &gt;52% of the time, with the luck check) is what decides — profits only count once that's passed. If it passes, this exact position logic moves to an MT5 demo next.</div>
+  </section>
+
+  <section id="score">
+    <div class="eyebrow">Report card</div>
+    <h2>Is the AI right often enough to matter?</h2>
+    <div class="sub">Every prediction gets checked after its week is up: did the market actually move the way it said? To pass, it must be right <b>more than 52 times out of 100</b> — that's the break-even point once trading costs are included. Below that, the idea dies. No excuses, no re-doing the math afterwards.</div>
+    <div class="card" id="scoreBox"><span class="muted">Checking predictions against what the market actually did…</span></div>
+    <div class="mt"><button class="btn" id="scoreBtn">Check again</button></div>
+    <div class="grid two mt">
+      <div class="card">
+        <div class="eyebrow">Checked — right or wrong</div>
+        <div class="tblwrap"><table id="gradedTable"><tr><td class="muted">nothing to check yet</td></tr></table></div>
+        <div class="mt eyebrow">By market</div>
+        <div class="tblwrap"><table id="symTable"><tr><td class="muted">appears once results exist — BTCUSD's row is the one that matters most for your MT5 account</td></tr></table></div>
+      </div>
+      <div class="card">
+        <div class="eyebrow">Still waiting for their week to pass</div>
+        <div class="tblwrap"><table id="pendingTable"><tr><td class="muted">—</td></tr></table></div>
+      </div>
+    </div>
+
+    <div class="card mt">
+      <div class="eyebrow">The deal — agreed now, while heads are cool</div>
+      <div class="sub" style="margin-bottom:12px">What real money does at each stage. Written before the results exist, so no result can talk us into breaking it.</div>
+      <div class="tblwrap"><table>
+        <tr><th>Track</th><th>What must be true</th><th>Status</th></tr>
+        <tr><td><b>A · Signal test</b></td><td class="num">40+ checked calls · right &gt;52% · passes the luck check</td><td>running · verdict ~Jul 24–31</td></tr>
+        <tr><td><b>B · Execution test</b> (runs in parallel)</td><td class="num">MT5 <b>demo</b> follows the same calls; fills &amp; costs match the paper account</td><td>starting — demo account being set up</td></tr>
+        <tr><td><b>Both pass →</b></td><td class="num">First real money: <b>$500–1,000</b>, sized so the worst month stings but never matters</td><td>then 3 good live months → scale, never more than doubling</td></tr>
+        <tr><td><b>Either fails →</b></td><td class="num">Signal below the mark, or execution doesn't match paper</td><td>it dies like the other eight. Money saved is the win.</td></tr>
+      </table></div>
+    </div>
+  </section>
+
+  <section id="signals">
+    <div class="eyebrow">Predictions</div>
+    <h2>Every call the AI has made, and why</h2>
+    <div class="sub">Click any row to read the AI's actual reasoning — the specific news it found that day. "News-checked" means it successfully searched live news before deciding; calls that couldn't be news-checked don't count toward the report card.</div>
+    <div id="sigList"></div>
+  </section>
+
+  <section id="grave">
+    <div class="eyebrow">Ideas tested</div>
+    <h2>Eleven ways to beat the market — honestly tested</h2>
+    <div class="sub">Each idea got one fair test with real costs included, decided before seeing the results. Most failed — that's normal, and every failure here is money that didn't get lost. The failures are as valuable as the one that worked.</div>
+    <div class="grid gravegrid" id="graveGrid"></div>
+  </section>
+
+  <section id="ref">
+    <div class="eyebrow">Learn</div>
+    <h2>The five rules of the game</h2>
+    <div class="sub">Rule 1 is how money is made. Rules 2–5 are how it's kept.</div>
+    <div class="eq"><div class="f"><b>1 · The profit test</b> — (how often right × avg win) − (how often wrong × avg loss) − fees</div>
+      <div class="plain">This number must be positive or the strategy loses money, full stop. Everything we test is judged by this.</div></div>
+    <div class="eq"><div class="f"><b>2 · The luck check</b> — more bets = more certainty</div>
+      <div class="plain">Being right 55% of the time over 20 trades could easily be luck. Over 500 trades, it's real. That's why we wait for ~40 checked predictions before judging.</div></div>
+    <div class="eq"><div class="f"><b>3 · The smoothness score</b> — profit ÷ how bumpy the ride is</div>
+      <div class="plain">Two strategies can make the same money; the one with smaller stomach-drops is better, because you'll actually stick with it.</div></div>
+    <div class="eq"><div class="f"><b>4 · Bet sizing</b> — never bet so big that a losing streak ends the game</div>
+      <div class="plain">Even a genuinely winning strategy ruins you if each bet is too large. This killed more traders than bad predictions ever did.</div></div>
+    <div class="eq"><div class="f"><b>5 · The hole rule</b> — lose 50% and you need +100% just to get back</div>
+      <div class="plain">Avoiding big losses matters more than chasing big wins. Holes are easier to avoid than to climb out of.</div></div>
+
+    <div class="grid two mt2">
+      <div class="card">
+        <div class="eyebrow">How often must you be right?</div>
+        <div class="tblwrap"><table>
+          <tr><th>If your wins and losses are…</th><th>You must be right…</th></tr>
+          <tr><td>the same size (1:1)</td><td class="num">more than ~52% of the time</td></tr>
+          <tr><td>wins 2× bigger than losses</td><td class="num">more than ~35%</td></tr>
+          <tr><td>wins half your losses' size</td><td class="num">more than ~68%</td></tr>
+        </table></div>
+        <p class="muted mt" style="font-size:13px">Our AI's calls are roughly "same size" bets — that's where the 52% pass mark comes from.</p>
+      </div>
+      <div class="card">
+        <div class="eyebrow">The experiment that proves it</div>
+        <div class="tblwrap"><table>
+          <tr><th>Setup (no skill, blind entries)</th><th>Right</th><th>Made per day</th></tr>
+          <tr><td>"good ratio" — small risk, big target</td><td class="num">36%</td><td class="num" style="color:var(--long)">+0.120%</td></tr>
+          <tr><td>even</td><td class="num">55%</td><td class="num">+0.040%</td></tr>
+          <tr><td>"safe" — big risk, small target</td><td class="num">73%</td><td class="num" style="color:var(--short)">−0.039%</td></tr>
+          <tr><td>just holding Bitcoin</td><td class="num">—</td><td class="num">+0.118%</td></tr>
+        </table></div>
+        <p class="muted mt" style="font-size:13px">The "best" setup earned exactly what Bitcoin itself earned. Stop-losses and targets change how it feels, not what it pays. Only real predictions or getting paid to hold change what it pays.</p>
+      </div>
+    </div>
+
+    <div class="card mt">
+      <div class="eyebrow">House rules</div>
+      <ol style="padding-left:20px;font-size:13.5px;color:var(--text)">
+        <li style="margin:6px 0">Decide how an idea will be judged <b>before</b> testing it. Never adjust afterwards to make it look better.</li>
+        <li style="margin:6px 0">AI predictions can't be tested on the past — the AI already knows how the past turned out. Live test only.</li>
+        <li style="margin:6px 0">Fees and costs are part of every result. An idea that only works with zero fees doesn't work.</li>
+        <li style="margin:6px 0">Practice money first, small real money later, bigger only after it keeps working.</li>
+        <li style="margin:6px 0">Most savings belong in boring index funds. These experiments stay small until proven.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="ops">
+    <div class="eyebrow">Engine room</div>
+    <h2>Is the machine running, and what does it cost?</h2>
+    <div class="grid two mt">
+      <div class="card">
+        <div class="eyebrow">The daily robot</div>
+        <div class="sub" style="margin-bottom:10px">Every weekday at 4:30pm your Mac automatically asks the AI for fresh calls and updates this page. The Mac just needs to be awake.</div>
+        <div id="opsJob" class="mono" style="font-size:13px">—</div>
+        <div class="mt eyebrow">Its latest output</div>
+        <pre id="cronTail">—</pre>
+      </div>
+      <div class="card">
+        <div class="eyebrow">What each day cost (AI fees, estimated)</div>
+        <div id="costBars"></div>
+        <p class="muted mt" style="font-size:12.5px">Exact bills: platform.claude.com → Usage. The July 3 spike was a runaway search loop — it's capped now, so expect ~$2–2.50 per weekday.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const dirOf=t=>t>0.05?"up":t<-0.05?"down":"neutral";
+const dirChip=t=>{const d=dirOf(t);return `<span class="chip ${d}">${d==="up"?"UP":d==="down"?"DOWN":"NO CALL"}</span>`};
+const tiltBar=t=>{const w=Math.min(Math.abs(t)*50,50),c=t>0?"var(--long)":t<0?"var(--short)":"var(--flat)";
+  const l=t>=0?50:50-w;return `<div class="tiltbar"><div class="tiltfill" style="left:${l}%;width:${w}%;background:${c}"></div></div>`};
+
+let STATIC=null;   // set from data.json on GitHub Pages; null when a live server is present
+async function j(u){
+  const p=u.split("?")[0];
+  if(STATIC){const d=STATIC[p]; if(d&&d.error)throw new Error(d.error); return d;}
+  const r=await fetch(u);const d=await r.json();if(d.error)throw new Error(d.error);return d}
+
+function pills(o){
+  const p=[];
+  p.push(`<span class="pill amber">Live test · day ${o.days_logged}</span>`);
+  p.push(`<span class="pill ${o.book_complete?'ok':'warn'}">${o.book_complete?"all 10 markets covered today":o.missing_today+" markets missing today"}</span>`);
+  p.push(`<span class="pill">result due ${esc(o.verdict_eta.replace('~','').split(' (')[0])}</span>`);
+  $("#pills").innerHTML=p.join("");
+}
+
+function statcards(o){
+  const g=o.tilts_total?Math.round(100*o.tilts_grounded/o.tilts_total):0;
+  const f=o.funding, fz=f?f.z.toFixed(2):"—";
+  $("#statcards").innerHTML=`
+    <div class="card stat"><div class="k">Day of live test</div><div class="v amberv">${o.days_logged}</div><div class="d">started ${esc(o.day1)}</div></div>
+    <div class="card stat"><div class="k">Predictions so far</div><div class="v">${o.tilts_total}</div><div class="d">${o.tilts_grounded} news-checked (${g}%)</div></div>
+    <div class="card stat"><div class="k">Pass mark</div><div class="v">52<span class="unit">%</span></div><div class="d">must be right this often to survive</div></div>
+    <div class="card stat"><div class="k">Panic meter</div><div class="v">${fz}</div><div class="d">${f?(f.trigger==="LONG"?"BUY SIGNAL FIRED":"calm — buys below −2"):"—"}</div></div>
+    <div class="card stat"><div class="k">Today's AI cost</div><div class="v">$${o.cost_today.toFixed(2)}</div><div class="d">estimated</div></div>`;
+}
+
+function book(o){
+  const rows=o.todays_book||[];
+  $("#bookTitle").textContent=rows.length?`${rows.length} of 10 markets · ${o.todays_date}`:"No calls yet today";
+  let h="<tr><th>Market</th><th>Call</th><th>Lean</th><th></th><th>Sureness</th><th>For the next</th></tr>";
+  for(const r of rows){h+=`<tr><td class="num"><b>${esc(r.symbol)}</b></td><td>${dirChip(r.tilt)}</td>
+    <td class="num">${r.tilt>0?"+":""}${r.tilt.toFixed(2)}</td><td>${tiltBar(r.tilt)}</td>
+    <td class="num">${r.confidence.toFixed(2)}</td><td class="num">${r.horizon_days} days</td></tr>`}
+  $("#bookTable").innerHTML=h;
+  $("#bookNote").innerHTML=o.book_complete?"":`<div class="note">${o.missing_today} markets didn't get a call today (the AI credits ran out mid-run — now topped up). Tomorrow's 4:30pm run covers all 10 automatically.</div>`;
+}
+
+function funding(o){
+  const f=o.funding; if(!f)return;
+  $("#fzVal").textContent=f.trigger==="LONG"?`${f.z.toFixed(2)} — BUY SIGNAL FIRED`:`${f.z.toFixed(2)} — calm, no signal`;
+  const pct=Math.max(0,Math.min(100,((f.z+3)/6)*100));
+  $("#needle").style.left=pct+"%";
+  $("#fzMeta").textContent=`last checked ${f.date}`;
+}
+
+function drawCurve(rows,start,bench){
+  const svg=$("#curve"),W=600,H=180,pad=26;
+  if(!rows.length){svg.innerHTML="";$("#curveNote").textContent="The curve appears as trading days accumulate.";return}
+  bench=bench||[];
+  const es=rows.map(r=>r.equity), bs=bench.map(b=>b.equity);
+  let lo=Math.min(...es,...(bs.length?bs:[start]),start),hi=Math.max(...es,...(bs.length?bs:[start]),start);
+  const span=Math.max(hi-lo,2);lo-=span*.15;hi+=span*.15;
+  const X=i=>rows.length===1?W/2:pad+i*(W-2*pad)/(rows.length-1);
+  const Y=v=>H-pad-(v-lo)*(H-2*pad)/(hi-lo);
+  const base=Y(start);
+  let s=`<line x1="${pad}" y1="${base}" x2="${W-pad}" y2="${base}" stroke="var(--line)" stroke-dasharray="4 4"/>`;
+  s+=`<text x="${pad}" y="${base-6}" fill="var(--muted)" font-size="10" font-family="var(--mono)">$${start} start</text>`;
+  if(bench.length>1){
+    const bp=bench.map((b,i)=>`${X(i)},${Y(b.equity)}`).join(" ");
+    s+=`<polyline points="${bp}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="5 4" opacity=".7"/>`;
+    s+=`<text x="${W-pad}" y="${Y(bs[bs.length-1])-6}" fill="var(--muted)" font-size="10" font-family="var(--mono)" text-anchor="end">just held BTC</text>`;
+  }
+  const up=es[es.length-1]>=start, col=up?"var(--long)":"var(--short)";
+  if(rows.length>1){
+    const pts=rows.map((r,i)=>`${X(i)},${Y(r.equity)}`).join(" ");
+    s+=`<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2"/>`;
+  }
+  const lx=X(rows.length-1),ly=Y(es[es.length-1]);
+  s+=`<circle cx="${lx}" cy="${ly}" r="4" fill="${col}"/>`;
+  svg.innerHTML=s;
+  $("#curveNote").textContent=(rows.length<5?`${rows.length} trading day${rows.length>1?"s":""} so far — the shape means little until a few weeks in. `:
+    `${rows.length} trading days. `)+"Grey dashed line = $1,000 that just bought Bitcoin and did nothing — the bar our cleverness has to beat.";
+}
+
+async function planTab(){
+  try{
+    const p=await j("/api/paper");
+    if(!p.curve||!p.curve.length){$("#planTable").innerHTML=`<tr><td class="muted">${esc(p.note||"starts with the next daily run")}</td></tr>`;drawCurve([],1000);return}
+    $("#paperTitle").textContent=`$1,000 following every call · day ${p.curve.length} · ${p.as_of}`;
+    $("#paperEquity").textContent=`$${p.equity.toFixed(2)}`;
+    const up=p.pnl>=0;
+    $("#paperPnl").innerHTML=`<span style="color:${up?'var(--long)':'var(--short)'}">${up?"+":""}$${p.pnl.toFixed(2)} (${up?"+":""}${(p.pnl/10).toFixed(2)}%) since start</span>`;
+    drawCurve(p.curve,p.start,p.benchmark);
+    let bmap={};try{const pl=await j("/api/plan");for(const x of (pl.positions||[]))bmap[x.symbol]=x.broker_symbol}catch(e){}
+    let h="<tr><th>Market</th><th>At your broker</th><th>Direction</th><th>Money in it</th></tr>";
+    for(const x of p.holdings){h+=`<tr><td class="num"><b>${esc(x.symbol)}</b></td>
+      <td class="num muted">${esc(bmap[x.symbol]||"—")}</td>
+      <td><span class="chip ${x.direction==="UP"?"up":"down"}">${x.direction}</span></td>
+      <td class="num">$${x.dollars.toFixed(2)}</td></tr>`}
+    $("#planTable").innerHTML=h;
+    $("#planMeta").textContent=`$${p.at_work.toFixed(0)} of the account is at work across ${p.holdings.length} positions. They resize automatically as new calls arrive each weekday.`;
+  }catch(e){$("#planTable").innerHTML=`<tr><td style="color:var(--warn)">couldn't load: ${esc(e.message)}</td></tr>`}
+}
+
+function graveyard(d){
+  $("#graveGrid").innerHTML=d.ideas.map(i=>
+    `<div class="card"><span class="stamp st-${esc(i.cls)}">${esc(i.verdict)}</span>
+      <div class="gname">${esc(i.name)}</div><div class="gmetric">${esc(i.metric)}</div>
+      <div class="glesson">${esc(i.lesson)}</div></div>`).join("");
+}
+
+function signals(d){
+  const byDay={};
+  for(const t of d.tilts)(byDay[t.as_of]??=[]).push(t);
+  $("#sigList").innerHTML=Object.keys(byDay).sort().reverse().map(day=>
+    `<div class="eyebrow mt2">${esc(day)}</div>`+byDay[day].map(t=>`
+    <details class="sigcard"><summary>
+      <span class="sigsym">${esc(t.symbol)}</span>${dirChip(t.tilt)}
+      <span class="num mono">lean ${t.tilt>0?"+":""}${t.tilt.toFixed(2)} · sure ${t.confidence.toFixed(2)} · ${t.horizon_days}d</span>
+      <span class="sigmeta">${t.grounded?`news-checked (${t.searches} searches)`:`<span style="color:var(--warn)">NOT news-checked</span>`}</span>
+    </summary><div class="sigbody"><p>${esc(t.rationale)}</p>
+      <div class="drivers">${(t.key_drivers||[]).map(k=>`<span class="driver">${esc(k)}</span>`).join("")}</div>
+    </div></details>`).join("")).join("");
+}
+
+function ops(d){
+  $("#opsJob").innerHTML=(d.launchd_loaded?`<span style="color:var(--long)">● running</span>`:`<span style="color:var(--short)">● NOT running — tell Claude</span>`)
+    +` · weekdays 4:30pm · <span class="muted">${esc(d.workdir)}</span>`;
+  $("#cronTail").textContent=(d.cron_tail||[]).join("\n")||"—";
+  const mx=Math.max(...d.costs_by_day.map(c=>c.est_usd),1);
+  $("#costBars").innerHTML=d.costs_by_day.map(c=>`<div class="barrow">
+    <span class="barlab">${esc(c.date)}</span>
+    <div class="bartrack"><div class="barfill" style="width:${(c.est_usd/mx)*100}%;background:var(--accent)"></div></div>
+    <span class="barval">$${c.est_usd.toFixed(2)}</span></div>
+    <div class="muted" style="font:11px var(--mono);margin:-2px 0 8px 96px">${c.calls} calls · ${c.searches} news searches</div>`).join("");
+}
+
+async function grade(){
+  const btn=$("#scoreBtn");btn.disabled=true;btn.textContent="Checking against real market moves…";
+  try{
+    const s=await j("/api/score");
+    const hr=s.hit_rate===null?null:(s.hit_rate*100);
+    const pe=s.practice_equity, gain=pe-s.practice_start;
+    $("#scoreBox").innerHTML= s.n_graded===0
+      ? `<b>Nothing to check yet.</b> <span class="muted">${s.pending.length} predictions are waiting for their week to pass. The first results land around mid-July; the final judgement needs ~40.</span>`
+      : `<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px">
+           <div><b class="mono" style="font-size:26px;color:${hr>=52?'var(--long)':'var(--short)'}">${hr.toFixed(1)}%</b>
+           <span class="muted"> right · ${s.n_graded} checked</span></div>
+           <div class="mono" style="color:${gain>=0?'var(--long)':'var(--short)'}">practice account: $${pe.toFixed(2)} (${gain>=0?"+":""}$${gain.toFixed(2)})</div>
+           <div class="muted mono">luck check: ${s.tstat??"needs ≥5 results"}</div></div>
+         <div class="prog"><div class="progfill" style="width:${Math.min(hr,100)}%"></div><div class="barmark" style="left:52%"></div></div>
+         <span class="muted" style="font-size:12px">The red line is the pass mark. Below it once ~40 are checked = the idea dies.</span>`;
+    $("#gradedTable").innerHTML="<tr><th>Market</th><th>Called on</th><th>Call</th><th>Market moved</th><th>Result</th><th>Practice $</th></tr>"+
+      (s.graded.map(g=>`<tr><td class="num">${esc(g.symbol)}</td><td class="num">${esc(g.as_of)}</td><td>${dirChip(g.tilt)}</td>
+       <td class="num">${g.fwd_ret>0?"+":""}${g.fwd_ret}%</td><td>${g.hit?'<span style="color:var(--long)">right ✓</span>':'<span style="color:var(--short)">wrong ✗</span>'}</td>
+       <td class="num" style="color:${g.pnl_usd>=0?'var(--long)':'var(--short)'}">${g.pnl_usd>=0?"+":""}$${g.pnl_usd.toFixed(2)}</td></tr>`).join("")||'<tr><td class="muted" colspan="6">none yet</td></tr>');
+    $("#pendingTable").innerHTML="<tr><th>Market</th><th>Called on</th><th>Call</th><th>Ready to check ≈</th></tr>"+
+      (s.pending.map(p=>`<tr><td class="num">${esc(p.symbol)}</td><td class="num">${esc(p.as_of)}</td><td>${p.tilt!==undefined?dirChip(p.tilt):"—"}</td><td class="num">${esc(p.matures||p.note||"—")}</td></tr>`).join("")||'<tr><td class="muted" colspan="4">none</td></tr>');
+    if(s.per_symbol&&s.per_symbol.length){
+      $("#symTable").innerHTML="<tr><th>Market</th><th>Checked</th><th>Right</th><th>Practice $</th></tr>"+
+        s.per_symbol.map(x=>`<tr><td class="num"><b>${esc(x.symbol)}</b></td><td class="num">${x.n}</td>
+        <td class="num" style="color:${x.hit_rate>=0.52?'var(--long)':'var(--short)'}">${Math.round(x.hit_rate*100)}%</td>
+        <td class="num" style="color:${x.pnl>=0?'var(--long)':'var(--short)'}">${x.pnl>=0?"+":""}$${x.pnl.toFixed(2)}</td></tr>`).join("");
+    }
+  }catch(e){$("#scoreBox").innerHTML=`<span style="color:var(--warn)">Couldn't check: ${esc(e.message)}</span>`}
+  btn.disabled=false;btn.textContent="Check again";
+}
+
+async function load(){
+  try{
+    const [o,t,g,op]=await Promise.all([j("/api/overview"),j("/api/tilts"),j("/api/graveyard"),j("/api/ops")]);
+    window._o=o;pills(o);statcards(o);book(o);funding(o);signals(t);graveyard(g);ops(op);
+  }catch(e){$("#pills").innerHTML=`<span class="pill warn">can't reach the engine — is the server running? (${esc(e.message)})</span>`}
+}
+
+$("#nav").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;
+  document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on",x===b));
+  document.querySelectorAll("main section").forEach(s=>s.classList.toggle("on",s.id===b.dataset.t));
+  if(b.dataset.t==="score"&&!window._graded){window._graded=1;grade()}
+  if(b.dataset.t==="plan")planTab();
+});
+$("#scoreBtn").addEventListener("click",grade);
+$("#fzBtn").addEventListener("click",async()=>{
+  if(STATIC){$("#fzMeta").textContent="Snapshot updates once daily — value above is today's.";return;}
+  const b=$("#fzBtn");b.disabled=true;b.textContent="Asking Binance…";
+  try{const f=await j("/api/funding/live");window._o.funding={...f,fund_3d:(f.fund_3d_pct_per_day||0)/100};funding(window._o);
+    $("#fzMeta").textContent=`LIVE just now (${f.date})`;
+  }catch(e){$("#fzMeta").textContent="live check failed: "+e.message}
+  b.disabled=false;b.textContent="Check right now (~15s)";
+});
+(async()=>{
+  try{const r=await fetch("data.json",{cache:"no-store"}); if(r.ok) STATIC=await r.json();}catch(e){}
+  load();
+  if(STATIC){ document.title="Quant Lab (daily snapshot)"; window._graded=1; grade(); }
+  else setInterval(load,60000);   // live mode: refresh; grading stays lazy per tab
+})();
+</script>
+</body>
+</html>

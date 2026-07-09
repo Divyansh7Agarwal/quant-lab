@@ -1,0 +1,62 @@
+name: quant-daily
+
+# Runs the whole pipeline on GitHub's servers — no Mac needed, ever.
+on:
+  schedule:
+    - cron: "0 11 * * 1-5"     # 11:00 UTC = 16:30 IST, Monday–Friday
+  workflow_dispatch: {}         # + a manual "Run" button in the Actions tab
+
+permissions:
+  contents: write               # commit the day's logs back to the repo
+  pages: write                  # publish the dashboard
+  id-token: write
+
+concurrency:
+  group: quant-daily
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - name: Daily pipeline (signal → funding → paper trade)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python run_macro_signal.py
+          python log_btc_funding.py || echo "funding step skipped (non-fatal)"
+          python paper_trader.py
+
+      - name: Build dashboard snapshot
+        run: python dashboard/build_static.py
+
+      - name: Commit the day's logs
+        run: |
+          git config user.name "quant-bot"
+          git config user.email "quant-bot@users.noreply.github.com"
+          git add -A
+          git diff --quiet --cached || git commit -m "daily run ${{ github.run_id }}"
+          git push
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dashboard/site
+
+  deploy:
+    needs: run
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
