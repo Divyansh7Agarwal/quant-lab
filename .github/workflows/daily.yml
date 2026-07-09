@@ -18,6 +18,7 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
+    timeout-minutes: 40          # hard cap — never let a stuck call hang for hours
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

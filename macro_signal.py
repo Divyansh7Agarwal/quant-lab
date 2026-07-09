@@ -140,7 +140,10 @@ def _call_claude(symbol):
     import anthropic
     # Talk to Anthropic DIRECTLY — bypass any local ANTHROPIC_BASE_URL proxy
     # (e.g. headroom), which injects tools this standalone script can't fulfill.
-    client = anthropic.Anthropic(base_url="https://api.anthropic.com")
+    # timeout so a single hung web-search call can't stall the whole cloud run
+    # (default is 10 min/request); max_retries low to avoid long backoff chains.
+    client = anthropic.Anthropic(base_url="https://api.anthropic.com",
+                                 timeout=150.0, max_retries=1)
     messages = [{"role": "user", "content": build_prompt(symbol)}]
     text_out, searches, results, errors = "", 0, 0, 0
     for _ in range(2):  # cost cap: initial + ONE continuation (searches re-bill per round)
