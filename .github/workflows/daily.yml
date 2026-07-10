@@ -3,7 +3,13 @@ name: quant-daily
 # Runs the whole pipeline on GitHub's servers — no Mac needed, ever.
 on:
   schedule:
-    - cron: "0 11 * * 1-5"     # 11:00 UTC = 16:30 IST, Monday–Friday
+    # GitHub delays/skips congested exact-hour crons (11:00 fired 90+ min late on
+    # 2026-07-10), so fire THREE staggered attempts at odd minutes. The first one
+    # to actually run buys the day's book; the others reuse the committed cache
+    # and finish in ~2 min for ~$0. Concurrency group serializes any overlap.
+    - cron: "53 10 * * 1-5"    # ~16:23 IST — primary
+    - cron: "47 11 * * 1-5"    # ~17:17 IST — backup if primary was skipped
+    - cron: "41 12 * * 1-5"    # ~18:11 IST — last resort, still before US open
   workflow_dispatch: {}         # + a manual "Run" button in the Actions tab
 
 permissions:
