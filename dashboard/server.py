@@ -19,6 +19,7 @@ from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 HERE = os.path.dirname(os.path.abspath(__file__))
 QUANT = os.path.dirname(HERE)
 sys.path.insert(0, QUANT)
+import budget as _budget
 
 MACRO_LOG = os.path.join(QUANT, "macro_signal_log.jsonl")
 FUND_LOG = os.path.join(QUANT, "btc_funding_log.jsonl")
@@ -43,15 +44,17 @@ def tilts():
 
 
 def cost_estimate(day_rows):
-    calls = len(day_rows)
-    searches = sum(r.get("searches", 0) for r in day_rows)
-    return round(calls * 0.10 + searches * 0.025, 2)
+    # real token+search accounting (budget.est_cost); rows logged before
+    # 2026-07-10 have no token fields and fall back to a flat per-call estimate
+    est = sum(_budget.est_cost(r) if r.get("in_tokens") else 0.45
+              for r in day_rows if r.get("source") == "claude+websearch")
+    return round(est, 2)
 
 
 def overview():
     rows = tilts()
     days = sorted({r["as_of"] for r in rows})
-    today = dt.date.today().isoformat()
+    today = dt.datetime.now(dt.timezone.utc).date().isoformat()
     todays = [r for r in rows if r["as_of"] == today] or ([r for r in rows if r["as_of"] == days[-1]] if days else [])
     grounded = [r for r in rows if r.get("grounded")]
     fund = _read_jsonl(FUND_LOG)
@@ -67,7 +70,7 @@ def overview():
         "bar": BAR, "verdict_eta": verdict_eta,
         "funding": fund[-1] if fund else None,
         "cost_today": cost_estimate(todays),
-        "model": "claude-sonnet-4-6", "search_cap": "max ~6/call (capped after $4 day)",
+        "model": "claude-sonnet-4-6", "search_cap": "~15 searches/call measured (~$0.47/market)",
     }
 
 
@@ -241,7 +244,12 @@ def ops():
         by_day.setdefault(r["as_of"], []).append(r)
     costs = [{"date": d, "calls": len(v), "searches": sum(x.get("searches", 0) for x in v),
               "est_usd": cost_estimate(v)} for d, v in sorted(by_day.items())]
-    return {"launchd_loaded": bool(job), "launchd_line": job, "schedule": "weekdays 16:30 local",
+    latest_day = costs[-1]["date"] if costs else None
+    utc_today = dt.datetime.now(dt.timezone.utc).date().isoformat()
+    return {"mode": "cloud", "launchd_loaded": bool(job), "launchd_line": job,
+            "schedule": "GitHub Actions, weekdays — attempts 10:53/11:47/12:41 UTC + watchdog 15:19 UTC",
+            "ran_today": latest_day == utc_today, "latest_run_day": latest_day,
+            "budget": _budget.status(),
             "workdir": QUANT, "cron_tail": cron_tail, "costs_by_day": costs}
 
 

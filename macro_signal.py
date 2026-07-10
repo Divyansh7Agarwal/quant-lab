@@ -97,8 +97,9 @@ def _today():
 def price_context(symbol):
     """Compact, factual price summary so the model anchors on real levels."""
     meta = INSTRUMENTS[symbol]
-    df = data.get(meta["yf"], period="2y")
-    c = df["close"]
+    data.last_close(meta["yf"])   # raises SanityError on stale/absurd feed —
+    df = data.get(meta["yf"], period="2y")   # better no call than a paid call
+    c = df["close"]                          # anchored on garbage prices
     last = float(c.iloc[-1])
     def ret(n): return (last / float(c.iloc[-n - 1]) - 1) * 100 if len(c) > n else float("nan")
     sma50, sma200 = float(c.tail(50).mean()), float(c.tail(200).mean())

@@ -13,6 +13,7 @@ import datetime as dt
 
 sys.path.insert(0, os.path.dirname(__file__))
 import macro_signal as ms
+import budget
 
 OUT = os.path.join(os.path.dirname(__file__), "target_tilts.json")
 
@@ -38,7 +39,11 @@ def main():
     print(f"Macro signal — {dt.datetime.now(dt.timezone.utc).date().isoformat()} — {len(universe)} instruments "
           f"(model {ms.MODEL}, grounded by web search)\n")
     DELAY = 15   # seconds between instruments — stay under the web-search rate limit
-    credits_dead = False
+    credits_dead = cap_hit = False
+
+    def run_cost(ts):
+        return sum(budget.est_cost(t.__dict__) for t in ts if t.source == "claude+websearch")
+
     tilts, done = [], {}
     for i, s in enumerate(universe):
         if i:
@@ -46,6 +51,12 @@ def main():
         try:
             t = ms.get_tilt(s, refresh=refresh, verbose=True)
             tilts.append(t); done[s] = t
+            if run_cost(tilts) > budget.RUN_CAP_USD:
+                cap_hit = True
+                print(f"\n  !! COST CAP: this run is ≈${run_cost(tilts):.2f}, over the "
+                      f"${budget.RUN_CAP_USD:.0f} safety cap — stopping. Billing is behaving "
+                      "abnormally; investigate before the next run. All results are saved.")
+                break
         except ms.CreditsExhausted:
             # every further call is a guaranteed failure — stop the run NOW
             credits_dead = True
@@ -57,7 +68,7 @@ def main():
 
     # one retry pass for anything that didn't ground (usually a transient rate-limit)
     ungrounded = [s for s, t in done.items() if not t.grounded]
-    if ungrounded and not credits_dead:
+    if ungrounded and not credits_dead and not cap_hit:
         print(f"\n  {len(ungrounded)} not grounded ({', '.join(ungrounded)}); "
               f"cooling down 60s then retrying once...")
         time.sleep(60)
@@ -68,6 +79,10 @@ def main():
                 t = ms.get_tilt(s, refresh=True, verbose=True)
                 if t.grounded:                           # replace the ungrounded row
                     tilts = [x for x in tilts if x.symbol != s] + [t]
+                if run_cost(tilts) > budget.RUN_CAP_USD:
+                    cap_hit = True
+                    print("\n  !! COST CAP exceeded during retries — stopping.")
+                    break
             except ms.CreditsExhausted:
                 credits_dead = True
                 print("\n  !! OUT OF ANTHROPIC CREDITS during retries — stopping.")
@@ -101,20 +116,38 @@ def main():
     print(f"  appended rows to {ms.LOG}")
 
     # honest money accounting — what THIS run's fresh (non-cache) calls cost, est.
+    from notify import notify
     live = [t for t in tilts if t.source == "claude+websearch"]
     n_srch = sum(t.searches for t in live)
     in_tok = sum(getattr(t, "in_tokens", 0) for t in live)
     out_tok = sum(getattr(t, "out_tokens", 0) for t in live)
-    usd = n_srch * 0.01 + in_tok * 3 / 1e6 + out_tok * 15 / 1e6
+    usd = run_cost(tilts)
     print(f"  cost: {len(live)} fresh calls, {n_srch} web searches, "
           f"{in_tok:,} in / {out_tok:,} out tokens ≈ ${usd:.2f} this run")
+    bs = budget.status()
+    if bs.get("configured"):
+        runway = (f"≈{bs['runway_days']} run-days" if bs["runway_days"] is not None else "n/a")
+        print(f"  credits: ${bs['spent_usd']:.2f} used of ${bs['budget_usd']:.2f} "
+              f"→ ${bs['remaining_usd']:.2f} left ({runway})")
 
     if credits_dead:
-        from notify import notify
         notify("Quant: OUT OF API CREDITS",
                f"Run stopped early — {n_g}/{len(universe)} markets done today. "
                "Add credits at console.anthropic.com; the next run resumes free from cache.")
         sys.exit(2)   # fail the CI step loudly; the workflow still commits saved work
+    if cap_hit:
+        notify("Quant: run stopped by cost cap",
+               f"This run hit the ${budget.RUN_CAP_USD:.0f} safety cap (≈${usd:.2f}) — "
+               "billing is abnormal. All paid results saved; investigate before next run.")
+        sys.exit(3)
+    if bs.get("configured") and bs["low"]:
+        notify("Quant: credits running low",
+               f"≈${bs['remaining_usd']:.2f} left ({runway}). "
+               "Top up at console.anthropic.com, then run: python budget.py add <usd>")
+    if live:   # fresh work done today — positive confirmation (silent on cached re-runs)
+        notify("Quant: today's book is in",
+               f"{n_g}/{len(universe)} markets news-checked, ≈${usd:.2f} this run"
+               + (f", ${bs['remaining_usd']:.0f} credits left" if bs.get("configured") else ""))
 
     print("\n  Forward-test: this is unproven. Log it daily, and after a few weeks score")
     print("  hit-rate (did the tilt's sign match the next-N-day move?) before risking capital.")

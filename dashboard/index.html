@@ -434,8 +434,14 @@ function signals(d){
 }
 
 function ops(d){
-  $("#opsJob").innerHTML=(d.launchd_loaded?`<span style="color:var(--long)">● running</span>`:`<span style="color:var(--short)">● NOT running — tell Claude</span>`)
-    +` · weekdays 4:30pm · <span class="muted">${esc(d.workdir)}</span>`;
+  const b=d.budget||{};
+  const cred=b.configured
+    ?` · credits: <b>$${(b.remaining_usd||0).toFixed(2)} left</b>${b.runway_days!=null?` (≈${b.runway_days} run-days)`:""}${b.low?` <span style="color:var(--short)">— LOW, top up soon</span>`:""}`
+    :"";
+  $("#opsJob").innerHTML=(d.ran_today
+      ?`<span style="color:var(--long)">● ran today</span>`
+      :`<span style="color:var(--warn)">● no run yet today (last: ${esc(d.latest_run_day||"never")})</span>`)
+    +` · ${esc(d.schedule||"cloud")}`+cred;
   $("#cronTail").textContent=(d.cron_tail||[]).join("\n")||"—";
   const mx=Math.max(...d.costs_by_day.map(c=>c.est_usd),1);
   $("#costBars").innerHTML=d.costs_by_day.map(c=>`<div class="barrow">

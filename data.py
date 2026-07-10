@@ -11,8 +11,37 @@ COLS = ["open", "high", "low", "close", "volume"]
 
 
 def _today():
-    # Date.now-style call is fine in normal Python; only the workflow sandbox forbids it.
-    return _dt.date.today().isoformat()
+    # UTC like the rest of the pipeline — Mac (IST) and cloud runner must agree.
+    return _dt.datetime.now(_dt.timezone.utc).date().isoformat()
+
+
+class SanityError(RuntimeError):
+    """The feed returned data too stale or too absurd to act on."""
+
+
+def last_close(ticker, max_stale_days=5, max_move=0.20):
+    """Latest close, refused if it can't be trusted.
+
+    Guards against the free feed's known failure modes: a series that quietly
+    stopped updating days ago, or a bad tick (zero/negative/NaN, or a one-day
+    move so large it's almost surely a data error, not a market). Callers skip
+    the symbol for the day instead of trading/marking on garbage.
+    """
+    df = get(ticker, period="1y")
+    c = df["close"].dropna()
+    if len(c) < 2:
+        raise SanityError(f"{ticker}: not enough history to sanity-check")
+    last, prev = float(c.iloc[-1]), float(c.iloc[-2])
+    age_days = (_dt.datetime.now(_dt.timezone.utc).date()
+                - c.index[-1].date()).days
+    if age_days > max_stale_days:
+        raise SanityError(f"{ticker}: last price is {age_days} days old (feed stale)")
+    if not last > 0:
+        raise SanityError(f"{ticker}: non-positive close {last}")
+    if prev > 0 and abs(last / prev - 1) > max_move:
+        raise SanityError(f"{ticker}: {abs(last/prev-1)*100:.0f}% one-day jump "
+                          f"({prev:g} → {last:g}) — likely bad data")
+    return last
 
 
 def get(ticker, period="6y", interval="1d", refresh=False):

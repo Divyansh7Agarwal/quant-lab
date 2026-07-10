@@ -29,8 +29,9 @@ COST_BPS = 4             # per trade, on traded dollars
 
 
 def price_of(sym):
-    proxy = ms.INSTRUMENTS[sym]["yf"]
-    return float(data.get(proxy, period="1y")["close"].iloc[-1])
+    # sanity-checked: raises data.SanityError on a stale feed or absurd tick,
+    # and the caller holds the position as-is rather than trade/mark on garbage
+    return data.last_close(ms.INSTRUMENTS[sym]["yf"])
 
 
 def load_state():
@@ -56,12 +57,13 @@ def main():
         d = json.load(open(TILTS))
         tgt = d.get("targets", {})
     symbols = sorted(set(list(st["positions"].keys()) + list(tgt.keys())))
-    prices = {}
+    prices, skipped = {}, {}
     for s in symbols:
         try:
             prices[s] = price_of(s)
         except Exception as e:                    # noqa: BLE001
-            print(f"paper: no price for {s} ({e}) — holding as-is")
+            skipped[s] = str(e)
+            print(f"paper: no trusted price for {s} ({e}) — holding as-is")
 
     # mark to market
     pos_value = sum(p["units"] * prices.get(s, p["last_price"])
@@ -108,6 +110,7 @@ def main():
                              "price": round(prices.get(s, p["last_price"]), 4),
                              "value": round(p["units"] * prices.get(s, p["last_price"]), 2)}
                          for s, p in st["positions"].items()},
+           "skipped": skipped,   # symbols held untouched today due to bad/stale prices
            "ts": time.time()}
     with open(CURVE, "a") as fh:
         fh.write(json.dumps(row) + "\n")
