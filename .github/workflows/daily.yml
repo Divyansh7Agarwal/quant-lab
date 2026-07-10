@@ -36,6 +36,7 @@ jobs:
       - name: Daily pipeline (signal → funding → paper trade)
         timeout-minutes: 32       # leaves ~8 min so the commit steps below ALWAYS run
         env:
+          PYTHONUNBUFFERED: "1"   # a timed-out step must not take its logs with it
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
