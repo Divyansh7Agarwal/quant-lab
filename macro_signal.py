@@ -81,6 +81,8 @@ class Tilt:
     searches: int = 0      # number of web searches Claude issued
     in_tokens: int = 0     # billed input tokens (cost audit trail)
     out_tokens: int = 0    # billed output tokens
+    cache_w_tokens: int = 0  # prompt-cache writes (billed at 1.25x input)
+    cache_r_tokens: int = 0  # prompt-cache reads  (billed at 0.10x input)
 
 
 class CreditsExhausted(RuntimeError):
@@ -166,12 +168,18 @@ def _call_claude(symbol):
     messages = [{"role": "user", "content": build_prompt(symbol)}]
     text_out, results, errors = "", 0, 0
     search_ids = set()          # dedupe by block id — continuations can repeat blocks
-    in_tok = out_tok = 0
+    in_tok = out_tok = cache_w = cache_r = 0
     for _ in range(2):  # cost cap: initial + ONE continuation (searches re-bill per round)
         try:
-            resp = client.messages.create(
+            # STREAM, don't block: on a non-streaming call the client can time out
+            # and abandon a request the server still completes AND BILLS (learned
+            # 2026-07-10: five timed-out calls = invisible spend). A stream keeps
+            # bytes flowing, so slow-but-healthy turns finish instead of being paid
+            # for and thrown away. timeout=240 still guards a truly dead stream.
+            with client.messages.stream(
                 model=MODEL, max_tokens=2500, tools=[WEB_SEARCH], messages=messages,
-            )
+            ) as s:
+                resp = s.get_final_message()
         except anthropic.BadRequestError as e:
             if "credit balance is too low" in str(e).lower():
                 raise CreditsExhausted("Anthropic credits exhausted") from e
@@ -180,6 +188,8 @@ def _call_claude(symbol):
         if u:
             in_tok += getattr(u, "input_tokens", 0) or 0
             out_tok += getattr(u, "output_tokens", 0) or 0
+            cache_w += getattr(u, "cache_creation_input_tokens", 0) or 0
+            cache_r += getattr(u, "cache_read_input_tokens", 0) or 0
         for b in resp.content:
             if b.type == "server_tool_use":
                 search_ids.add(getattr(b, "id", len(search_ids)))
@@ -190,10 +200,17 @@ def _call_claude(symbol):
                     errors += 1
         text_out = "".join(b.text for b in resp.content if b.type == "text")
         if resp.stop_reason == "pause_turn":
-            messages.append({"role": "assistant", "content": resp.content})
+            # continuation re-reads this whole prefix — mark it cacheable so the
+            # re-read bills at 10% instead of full price. This is what makes a
+            # heavy-search day cost close to a normal one.
+            blocks = [b.model_dump(exclude_none=True) for b in resp.content]
+            if blocks:
+                blocks[-1]["cache_control"] = {"type": "ephemeral"}
+            messages.append({"role": "assistant", "content": blocks})
             continue
         break
-    return _extract_json(text_out), len(search_ids), results, errors, in_tok, out_tok
+    return (_extract_json(text_out), len(search_ids), results, errors,
+            in_tok, out_tok, cache_w, cache_r)
 
 
 def get_tilt(symbol, refresh=False, verbose=False):
@@ -208,7 +225,8 @@ def get_tilt(symbol, refresh=False, verbose=False):
     if not os.getenv("ANTHROPIC_API_KEY"):
         raise RuntimeError("ANTHROPIC_API_KEY not set — export it to call Claude.")
 
-    raw, searches, results, errors, in_tok, out_tok = _call_claude(symbol)
+    (raw, searches, results, errors,
+     in_tok, out_tok, cache_w, cache_r) = _call_claude(symbol)
     tilt = Tilt(
         symbol=symbol,
         stance=str(raw.get("stance", "flat")).lower(),
@@ -220,6 +238,7 @@ def get_tilt(symbol, refresh=False, verbose=False):
         as_of=_today(), model=MODEL, source="claude+websearch",
         grounded=(results >= 3 and errors == 0), searches=searches,
         in_tokens=in_tok, out_tokens=out_tok,
+        cache_w_tokens=cache_w, cache_r_tokens=cache_r,
     )
     json.dump(asdict(tilt), open(key, "w"))
     with _log_lock, open(LOG, "a") as fh:

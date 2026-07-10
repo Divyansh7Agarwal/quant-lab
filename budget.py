@@ -17,8 +17,9 @@ QUANT = os.path.dirname(os.path.abspath(__file__))
 BUDGET = os.path.join(QUANT, "budget.json")
 LOG = os.path.join(QUANT, "macro_signal_log.jsonl")
 
-# claude-sonnet-4-6 list prices
+# claude-sonnet-4-6 list prices (cache writes +25%, cache reads -90%)
 IN_PER_MTOK, OUT_PER_MTOK, PER_SEARCH = 3.0, 15.0, 0.01
+CACHE_W_PER_MTOK, CACHE_R_PER_MTOK = 3.75, 0.30
 
 # thresholds shared by runner + watchdog
 WARN_REMAINING_USD = 10.0     # ~2 run-days: warn the user to top up
@@ -26,10 +27,12 @@ RUN_CAP_USD = 8.0             # no single run may spend more than this
 
 
 def est_cost(row):
-    """Estimated $ for one logged call (dict with searches/in_tokens/out_tokens)."""
+    """Estimated $ for one logged call (dict with searches/token fields)."""
     return (row.get("searches", 0) * PER_SEARCH
             + row.get("in_tokens", 0) * IN_PER_MTOK / 1e6
-            + row.get("out_tokens", 0) * OUT_PER_MTOK / 1e6)
+            + row.get("out_tokens", 0) * OUT_PER_MTOK / 1e6
+            + row.get("cache_w_tokens", 0) * CACHE_W_PER_MTOK / 1e6
+            + row.get("cache_r_tokens", 0) * CACHE_R_PER_MTOK / 1e6)
 
 
 def _load():
