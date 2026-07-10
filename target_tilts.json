@@ -1,7 +1,14 @@
 {
-  "as_of": "2026-07-09",
+  "as_of": "2026-07-10",
   "model": "claude-sonnet-4-6",
   "targets": {
-    "XAUUSD": 0.2475
+    "XAGUSD": -0.171,
+    "XAUUSD": -0.147,
+    "US500": -0.1575,
+    "BTCUSD": 0.114,
+    "USDJPY": -0.0896,
+    "USOIL": -0.1,
+    "EURUSD": 0.06,
+    "USTEC": -0.0525
   }
 }
