@@ -15,7 +15,7 @@ can score hit-rate going forward.
 Needs ANTHROPIC_API_KEY in the environment. Runs anywhere with internet — only
 the EXECUTION half (live_mt5.py) needs the Windows/MT5 box.
 """
-import os, re, json, time
+import os, re, json, time, threading
 import datetime as dt
 from dataclasses import dataclass, asdict
 
@@ -35,6 +35,7 @@ WEB_SEARCH = {"type": "web_search_20260209", "name": "web_search", "max_uses": 2
 
 CACHE = os.path.join(os.path.dirname(__file__), "cache", "macro")
 LOG = os.path.join(os.path.dirname(__file__), "macro_signal_log.jsonl")
+_log_lock = threading.Lock()   # get_tilt may run from parallel workers
 os.makedirs(CACHE, exist_ok=True)
 
 # Signal universe = ONLY what the broker (Syntex) can actually trade (user decision
@@ -221,7 +222,7 @@ def get_tilt(symbol, refresh=False, verbose=False):
         in_tokens=in_tok, out_tokens=out_tok,
     )
     json.dump(asdict(tilt), open(key, "w"))
-    with open(LOG, "a") as fh:
+    with _log_lock, open(LOG, "a") as fh:
         fh.write(json.dumps({**asdict(tilt), "ts": time.time()}) + "\n")
     if verbose:
         flag = f"{searches} searches" if tilt.grounded else "NOT GROUNDED"

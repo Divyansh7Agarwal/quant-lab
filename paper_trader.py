@@ -51,6 +51,16 @@ def main():
             print(f"paper: already marked today (equity ${rows[-1]['equity']:.2f})")
             return
 
+    # positions whose market left the tradable universe can never be priced or
+    # targeted again — close them at their last known price and free the cash
+    # (AAPL/NVDA were stuck this way after the 2026-07-04 universe change)
+    for s in list(st["positions"]):
+        if s not in ms.INSTRUMENTS:
+            p = st["positions"].pop(s)
+            st["cash"] += p["units"] * p["last_price"]
+            print(f"paper: {s} left the universe — closed {p['units']:.4f} units "
+                  f"at last known price {p['last_price']}")
+
     # current prices for everything we hold or might trade
     tgt = {}
     if os.path.exists(TILTS):

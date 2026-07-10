@@ -38,33 +38,46 @@ def main():
 
     print(f"Macro signal — {dt.datetime.now(dt.timezone.utc).date().isoformat()} — {len(universe)} instruments "
           f"(model {ms.MODEL}, grounded by web search)\n")
-    DELAY = 15   # seconds between instruments — stay under the web-search rate limit
+    DELAY = 15         # between serial retry calls only
+    PARALLEL = 3       # markets bought simultaneously — a slow call can't block the rest
     credits_dead = cap_hit = False
 
     def run_cost(ts):
         return sum(budget.est_cost(t.__dict__) for t in ts if t.source == "claude+websearch")
 
-    tilts, done = [], {}
-    for i, s in enumerate(universe):
-        if i:
-            time.sleep(DELAY)
+    # prefetch price data serially first (yfinance + csv cache aren't thread-friendly;
+    # the Claude calls afterwards are). Failures here resurface inside get_tilt.
+    for s in universe:
         try:
-            t = ms.get_tilt(s, refresh=refresh, verbose=True)
-            tilts.append(t); done[s] = t
-            if run_cost(tilts) > budget.RUN_CAP_USD:
-                cap_hit = True
-                print(f"\n  !! COST CAP: this run is ≈${run_cost(tilts):.2f}, over the "
-                      f"${budget.RUN_CAP_USD:.0f} safety cap — stopping. Billing is behaving "
-                      "abnormally; investigate before the next run. All results are saved.")
+            ms.price_context(s)
+        except Exception:                                # noqa: BLE001
+            pass
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    tilts, done = [], {}
+    with ThreadPoolExecutor(max_workers=PARALLEL) as pool:
+        futures = {pool.submit(ms.get_tilt, s, refresh, True): s for s in universe}
+        for fut in as_completed(futures):
+            s = futures[fut]
+            try:
+                t = fut.result()
+                tilts.append(t); done[s] = t
+                if run_cost(tilts) > budget.RUN_CAP_USD and not cap_hit:
+                    cap_hit = True
+                    print(f"\n  !! COST CAP: this run is ≈${run_cost(tilts):.2f}, over the "
+                          f"${budget.RUN_CAP_USD:.0f} safety cap — stopping. Billing is behaving "
+                          "abnormally; investigate before the next run. All results are saved.")
+                    pool.shutdown(cancel_futures=True)
+                    break
+            except ms.CreditsExhausted:
+                # every further call is a guaranteed failure — stop the run NOW
+                credits_dead = True
+                print(f"\n  !! OUT OF ANTHROPIC CREDITS at {s} — aborting the run "
+                      f"({len(done)}/{len(universe)} done, all paid results are saved).")
+                pool.shutdown(cancel_futures=True)
                 break
-        except ms.CreditsExhausted:
-            # every further call is a guaranteed failure — stop the run NOW
-            credits_dead = True
-            print(f"\n  !! OUT OF ANTHROPIC CREDITS at {s} — aborting the run "
-                  f"({len(done)}/{len(universe)} done, all paid results are saved).")
-            break
-        except Exception as e:                           # noqa: BLE001
-            print(f"  ! {s}: {e}")
+            except Exception as e:                       # noqa: BLE001
+                print(f"  ! {s}: {e}")
 
     # one retry pass for anything that didn't ground (usually a transient rate-limit)
     ungrounded = [s for s, t in done.items() if not t.grounded]
