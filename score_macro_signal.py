@@ -33,10 +33,18 @@ def load_log():
     return list(latest.values())
 
 
+# symbols removed from the tradable universe whose logged calls still get graded
+# (a forward test never deletes observations — that would flatter the results)
+LEGACY_PROXIES = {"AAPL": "AAPL", "NVDA": "NVDA"}
+
+
 def realized_return(symbol, as_of, horizon):
     """Return over `horizon` trading days starting at the close on/after as_of,
     or None if not enough days have elapsed yet."""
-    proxy = ms.INSTRUMENTS[symbol]["yf"]
+    meta = ms.INSTRUMENTS.get(symbol)
+    proxy = meta["yf"] if meta else LEGACY_PROXIES.get(symbol)
+    if proxy is None:
+        return None                                 # unknown symbol → skip, don't crash
     df = data.get(proxy, period="2y")
     idx = df.index
     d = pd.Timestamp(as_of)

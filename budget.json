@@ -1,11 +1,16 @@
 {
-  "budget_usd": 20.0,
+  "budget_usd": 14.03,
   "since": "2026-07-09T18:00:00+00:00",
   "history": [
     {
       "date": "2026-07-09",
       "usd": 20.0,
       "note": "second top-up, after the $20 burn incident"
+    },
+    {
+      "date": "2026-07-13",
+      "usd": -5.97,
+      "note": "reconciliation: unmetered server-side billing of abandoned timed-out calls (pre-streaming-fix); confirmed by credit exhaustion 2026-07-13"
     }
   ]
 }
