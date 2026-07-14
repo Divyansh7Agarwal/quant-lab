@@ -1,11 +1,5 @@
 {
-  "as_of": "2026-07-13",
+  "as_of": "2026-07-14",
   "model": "claude-sonnet-4-6",
-  "targets": {
-    "XAGUSD": -0.3596,
-    "XAUUSD": -0.1344,
-    "EURUSD": -0.12,
-    "USDJPY": -0.08,
-    "GBPUSD": 0.095
-  }
+  "targets": {}
 }
